@@ -61,19 +61,36 @@ int socket_client_connect(socket_t *sock)
 	if(cn < 0)
 	{
 		log_warn("Connect to server[%s:%d] failure: %s\n",servip, port, strerror(errno));
-		socket_close()
+		socket_close(sock);
 		return -2;
 	}
 	else
 	{
 		log_info("Connect to server successfully!\n");
 	}
-	
-	if( cn < 0 )
-	{
-		socket_close(sock);
-	}
 
 	return cn;
 }
 
+int socket_client_judge(int sockfd)
+{
+	struct tcp_info   info;
+
+	if(sockfd < 0)
+	{
+		return 0;
+	}
+	int len = sizeof(info);
+
+	getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *) &len);
+	if((info.tcpi_state == 1))
+	{
+		log_info("socket connected\n");
+		return 1;
+	}
+	else
+	{
+		log_errno("socket disconnected\n");
+		return 0;
+	}
+}
