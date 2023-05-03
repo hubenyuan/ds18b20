@@ -21,41 +21,46 @@
 #include <getopt.h>
 #include <time.h>
 
-#include "package_data.h"
+#include "time.h"
+#include "temp.h"
 #include "my_sqlite3.h"
 #include "logger.h"
-
+#include "client.h"
 
 int get_serial(char *serial_buf);
+static inline void print_usage(char *progname);
 
-static inline void print_usage(char *progname)
+typedef struct socket_s
 {
-    log_error("%s usage: \n", progname);
-    log_error("-i[ipaddr ]: sepcify server IP address\n");
-    log_error("-p[port   ]: sepcify server port.\n");
-    log_error("-t[times  ]: sepcify the time to send.\n");
-    log_error("-h[help   ]: print this help informstion.\n");
-    return ;
-}
+	int     fd;
+	int     port;
+	char    hostname;
+} socket_t;
+
 
 int main(int argc, char **argv)
 {
 	int                   sockfd = -1;
 	int                   rv = -1;
 	int                   port = 0;
-	int                   times = 3;
-	char                  buf[512];
-	char                  data_buff[512];
+	int                   itval = 10;
+	int                   founds = 0;
+	int                   sample = 0;
+	long                  collet_time = 0;
+	long                  current_time = 0;                 
 	int                   ch;
 	int                   maxid;
 	int                   idx;
-	int                   founds = 0;
 	char                  serial_buf[16];
 	char                  time_buf[64];
 	char                  temp_buf[64];
 	char                  send_buf[128];
+	char                  buf[512];
+	char                  data_buff[512];
 	struct sockaddr_in    servaddr;
-	char                 *servip = NULL;
+	struct timeval        tv;
+	struct tm            *st;
+	char                 *hostname = NULL;
 
 	struct option       opts[] = {
 		{"hostname", required_argument, NULL, 'h'},
@@ -75,8 +80,8 @@ int main(int argc, char **argv)
 			case 'p':
 				port=atoi(optarg);
 				break;
-			case 't':
-				times=atoi(optarg);
+			case 'i':
+				interval=atoi(optarg);
 				break;
 			case 'H':
 				print_usage(argv[0]);
@@ -90,7 +95,7 @@ int main(int argc, char **argv)
 	}
 
 	servip=argv[1];
-	port = atoi(argv[2]);
+	port=atoi(argv[2]);
 
 	if( logger_init("stdout", LOG_LEVEL_DEBUG) < 0)
 	{
@@ -98,102 +103,122 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	/*创建连接数据库和并且创建名为packaged_data的表*/
-	get_sqlite_create_db();
+	socket_t       sock;
+
+	/* 将socket初始化 */
+	if( socket_client_init(&sock, hostname, port) < 0)
+	{
+		log_warn("socket initialization failure\n");
+		return 0;
+	}
+
+	if(get_sqlite_create_db() < 0)
+	{
+		log_warn("sqlite3 initialization failed\n");
+	}
+	else
+	{
+		log_info("sqlite3 initialization successfully\n");
+	}
+		
 
 	while(1)
 	{
-		/* 创建文件描述符sockfd */
-		sockfd = socket(AF_INET, SOCK_STREAM, 0);
-		if(sockfd < 0)
+		/* 判断到没到采样时间，时间到了就开始采样 */
+		gettimeofday(&tv, NULL);
+		current_time=tv.tv_sec;
+		if( (current_time-collet_time) >= itval )
 		{
-			log_error("Create socket failur %s\n", strerror(errno));
-			close(sockfd);
-			sockfd = -1;
-			return -1;
-		}
-		log_info("Create socket[%d] successfully!\n",sockfd);
-
-		memset(&servaddr, 0, sizeof(servaddr));
-		servaddr.sin_family=AF_INET;
-		servaddr.sin_port = htons(port);
-		inet_aton(servip, &servaddr.sin_addr);
-
-		rv = connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
-		if(rv < 0)
-		{
-			log_warn("Connect to server[%s:%d] failure: %s\n",servip, port, strerror(errno));
-            /* 获取当前时间 */
-			get_time(time_buf);
-			/* 获取温度 */ 
+			sample = 1;
+			collet_time=get_time(time_buf);
 			get_temporary(temp_buf);
-			/* 获取产品序列号 */
 			get_serial(serial_buf);
 
-		    sqlite_insert_data(time_buf, serial_buf, temp_buf);
-			close(sockfd);
-			sockfd = -1;
-			sleep(5);
+		}
+
+		else
+		{
+			sample = 0;
+			log_info("It's not sampling time\n");
+		}
+
+		/* 判断socket连没连上，如果没连上就连接服务器 */
+		if(socket_client_judge(sockfd) < 0)
+		{
+			if( sockfd > 0)
+			{
+				close(sockfd);
+				sockfd = -1;
+			}
+
+			if( socket_client_connect(&sock) > 0 )
+			{
+				log_info("socket client connect againt successfully\n");
+			}
+			else
+			{
+				log_error("socket client connect againt failed\n");
+				close(sockfd);
+				socket = -1;
+			}
+		}
+
+		/* socket断线重连失败，且有采样，把采样数据插入到数据库 */
+		if(sockfd<0)
+		{
+			if( sample )
+			{
+				if( (rv=sqlite_insert_data(time_buf, serial_buf, temp_buf)) < 0 )
+				{
+					log_info("Insert data failed\n");
+				}
+			}
 			continue;
 		}
-		log_info("Connect to server[%s:%d] successfully!\n", servip, port);
 
-		while(1)
+		/* socket连上了且数据有采样 */
+		if( sample )
 		{
-			/* 获取数据库数据最大ID并且判断数据库里面存不存在数据 */
-			sqlite_maxid( &maxid );
-			/* maxid > 0表示有数据 */
-			if(maxid>0)
-			{
-				memset(send_buf, 0, sizeof(send_buf));
-				memset(data_buff, 0, sizeof(data_buff));
-				/* 获取数据库表里面的数据并且发送到服务器 */
-				sqlite_select_data(send_buf);
-				sprintf(data_buff,"%s\n",send_buf);
-				rv=write(sockfd, data_buff, strlen(data_buff));
-				/* 删除数据库表里面ID最大的数据  */
-				sqlite_delete_data();
-				continue;
-			}
-			break;
-		}
-
-		while(1)
-		{
-			/* 获取当前时间*/ 
-			get_time(time_buf);
-			/* 获取温度*/
-			get_temporary(temp_buf);
-			/* 获取产品序列号 */
-			get_serial(serial_buf);
-
 			memset(data_buff,0,sizeof(data_buff));
-			sprintf(data_buff,"%s/%s/%s\n",time_buf,serial_buf,temp_buf);
-
-			rv=write(sockfd, data_buff, strlen(data_buff));
-			if(rv < 0 )
+			sprintf(data_buff,"%s/%s/%s",time_buf,serial_buf,temp_buf);
+			log_debug("data_buff: %s\n", data_buff);
+			rv = write(sockfd,data_buff,sizeof(data_buff));
+			if(rv < 0)
 			{
-				log_error("write to server by socket[%d] failure: %s\n",sockfd,strerror(errno));
-				break;
+				sqlite_insert_data(time_buf, serial_buf, temp_buf);
+				log_error("send data failure: %s\n",strerror(errno));
+				close(sockfd);
+				sockfd = -1;
 			}
-
-			memset(buf, 0, sizeof(buf));
-			rv=read(sockfd, buf, sizeof(buf));	
-			if(rv < 0 )
+			else
 			{
-				log_error("Read data from server by sockfd[%d] failure: %s\n",sockfd, strerror(errno));
-				break;
+				log_info("sample send successfully\n");
 			}
-			else if( rv == 0 )
+		}
+		
+		/* 如果没有采样的数据但是socket已经连接，将数据库里面的数据发送到服务器 */
+		else
+		{
+			if(sqlite_maxid(&maxid) > 0)
 			{
-				log_error("socket[%d] get disconnected\n",sockfd);
-				break;
+				sqlite_select_data(send_buf);
+				rv=write(sockfd,send_buf,sizeof(send_buf));
+				if(rv < 0)
+				{
+					log_error("send data failure: %s\n",strerror(errno));
+					close(sockfd);
+					sockfd = -1;
+				}
+				else
+				{
+					sqlite_delete_data();
+					log_info("sqlite data start send and delete\n");
+				}
 			}
-			else if( rv > 0 )
-			{	
-				log_info("Read %d bytes data from Server.\n",rv);
+			else
+			{
+				log_info("sqlite has no data\n");
 			}
-			sleep(times);
 		}
 	}
 
@@ -209,3 +234,14 @@ int get_serial(char *serial_buf)
 	sprintf(serial_buf, "hby%03d",n);
 	return 0;
 }
+
+static inline void print_usage(char *progname)
+{
+    log_error("%s usage: \n", progname);
+    log_error("-h[hostname ]: sepcify server IP address\n");
+    log_error("-p[port     ]: sepcify server port.\n");
+    log_error("-i[interval ]: sepcify the time to send.\n");
+    log_error("-H[Help     ]: print this help informstion.\n");
+    return ;
+}
+
