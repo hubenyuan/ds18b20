@@ -17,22 +17,33 @@ typedef struct socket_s
 {
 	int       fd;
 	int       port;
-	int       connected;
-	char      host[64];
+	char     *serverip;
 } socket_t;
 
 int socket_close(socket_t *sock)
 {
-	close(sock->fd);
+	close(sock->sockfd);
 	sock->fd = -1;
 }
 
-int socket_client_init(socket_t *sock, int port, char *hostname)
+int socket_client_init(socket_t *sock, char *hostname, int port)
 {
-	int                   rv = -1;
+	sock->fd = -1;
+
+	/* 域名解析 */
+	sock->serverip = hostname;
+	
+	sock->port = port;
+
+	return 0;
+}
+
+int socket_client_connect(socket_t *sock)
+{
+	int                   cn = -1;
 	struct sockaddr_in    servaddr;
 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	*sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if(sockfd < 0)
 	{
 		log_error("Create socket failur %s\n", strerror(errno));
@@ -42,24 +53,27 @@ int socket_client_init(socket_t *sock, int port, char *hostname)
 
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family=AF_INET;
-	servaddr.sin_port = htons(port);
+	servaddr.sin_port=htons(*port);
 	net_aton(servip, &servaddr.sin_addr);
 	
-	rv = connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+	cn = connect( *sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr) );
 
-	if(rv < 0)
+	if(cn < 0)
 	{
 		log_warn("Connect to server[%s:%d] failure: %s\n",servip, port, strerror(errno));
+		socket_close()
 		return -2;
 	}
 	else
 	{
 		log_info("Connect to server successfully!\n");
-		return (*sockfd);
 	}
+	
+	if( cn < 0 )
+	{
+		socket_close(sock);
+	}
+
+	return cn;
 }
 
-int socket_client_connect(socket_t *sock)
-{
-
-}
