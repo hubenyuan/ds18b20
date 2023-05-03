@@ -18,5 +18,7 @@ int socket_client_init(socket_t *sock, char *hostname, int port);
 
 int socket_client_connect(socket_t *sock);
 
+int socket_client_judge(int sockfd);
+
 #endif
 
