@@ -57,15 +57,15 @@ int main(int argc, char **argv)
 	char                  send_buf[128];
 	char                  buf[512];
 	char                  data_buff[512];
-	struct sockaddr_in    servaddr;
+	socket_t              sock;
 	struct timeval        tv;
 	struct tm            *st;
-	char                 *hostname = NULL;
+	char                 *servip = NULL;
 
 	struct option       opts[] = {
 		{"hostname", required_argument, NULL, 'h'},
 		{"port", required_argument, NULL, 'p'},
-		{"times", required_argument, NULL, 't'},
+		{"interval", required_argument, NULL, 't'},
 		{"Help", no_argument, NULL, 'H'},
 		{NULL, 0, NULL, 0}
 	};
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
 			case 'p':
 				port=atoi(optarg);
 				break;
-			case 'i':
+			case 't':
 				interval=atoi(optarg);
 				break;
 			case 'H':
@@ -103,7 +103,6 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	socket_t       sock;
 
 	/* 将socket初始化 */
 	if( socket_client_init(&sock, hostname, port) < 0)
@@ -130,10 +129,12 @@ int main(int argc, char **argv)
 		if( (current_time-collet_time) >= itval )
 		{
 			sample = 1;
+			/* 获取当前的时间 */
 			collet_time=get_time(time_buf);
-			get_temporary(temp_buf);
+			/* 获取当前的温度 */
+			get_temp(temp_buf);
+			/* 获取产品序列号 */
 			get_serial(serial_buf);
-
 		}
 
 		else
@@ -147,8 +148,7 @@ int main(int argc, char **argv)
 		{
 			if( sockfd > 0)
 			{
-				close(sockfd);
-				sockfd = -1;
+				socket_close(sock);
 			}
 
 			if( socket_client_connect(&sock) > 0 )
@@ -158,8 +158,7 @@ int main(int argc, char **argv)
 			else
 			{
 				log_error("socket client connect againt failed\n");
-				close(sockfd);
-				socket = -1;
+				socket_close(sock);
 			}
 		}
 
@@ -185,10 +184,10 @@ int main(int argc, char **argv)
 			rv = write(sockfd,data_buff,sizeof(data_buff));
 			if(rv < 0)
 			{
+				/* 把没发送成功的数据插入到数据库 */
 				sqlite_insert_data(time_buf, serial_buf, temp_buf);
 				log_error("send data failure: %s\n",strerror(errno));
-				close(sockfd);
-				sockfd = -1;
+				socket_close(sock);
 			}
 			else
 			{
@@ -199,20 +198,22 @@ int main(int argc, char **argv)
 		/* 如果没有采样的数据但是socket已经连接，将数据库里面的数据发送到服务器 */
 		else
 		{
+			/* 判断数据库里面有没有数据，maxid大于0就是有数据 */
 			if(sqlite_maxid(&maxid) > 0)
 			{
-				sqlite_select_data(send_buf);
+				/* 把数据库里面最大id数的数据发送到服务器 */
+				sqlite_send_data(send_buf);
 				rv=write(sockfd,send_buf,sizeof(send_buf));
+				/* 把数据库里面最大id数的数据删除 */
+				sqlite_delete_data();
 				if(rv < 0)
 				{
 					log_error("send data failure: %s\n",strerror(errno));
-					close(sockfd);
-					sockfd = -1;
+					socket_close(sock)
 				}
 				else
 				{
-					sqlite_delete_data();
-					log_info("sqlite data start send and delete\n");
+					log_info("sqlite3 data send successfully\n");
 				}
 			}
 			else
@@ -223,7 +224,7 @@ int main(int argc, char **argv)
 	}
 
 	sqlite_close_db();
-	close(sockfd);
+	socket_close(sock);
 	return 0;
 }
 
@@ -240,7 +241,7 @@ static inline void print_usage(char *progname)
     log_error("%s usage: \n", progname);
     log_error("-h[hostname ]: sepcify server IP address\n");
     log_error("-p[port     ]: sepcify server port.\n");
-    log_error("-i[interval ]: sepcify the time to send.\n");
+    log_error("-t[interval ]: sepcify the time to send.\n");
     log_error("-H[Help     ]: print this help informstion.\n");
     return ;
 }
