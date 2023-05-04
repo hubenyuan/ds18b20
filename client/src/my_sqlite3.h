@@ -19,7 +19,7 @@ int sqlite_insert_data(char *time_buf, char *serial_buf, char *temp_buf);
 
 int sqlite_maxid(int *maxid);
 
-int sqlite_select_data(char *send_buf);
+int sqlite_send_data(char *send_buf);
 
 int sqlite_delete_data();
 
