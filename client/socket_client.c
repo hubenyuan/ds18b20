@@ -37,6 +37,13 @@ typedef struct socket_s
 	char    hostname;
 } socket_t;
 
+typedef struct packdata_s
+{
+	char    data_time[64];
+	char    data_serial[16];
+	char    data_temp[64];
+} packdata_t;
+
 
 int main(int argc, char **argv)
 {
@@ -46,18 +53,17 @@ int main(int argc, char **argv)
 	int                   itval = 10;
 	int                   founds = 0;
 	int                   sample = 0;
-	long                  collet_time = 0;
-	long                  current_time = 0;                 
+	static double         collet_time = 0;
+	static double         current_time = 0;                 
 	int                   ch;
 	int                   maxid;
 	int                   idx;
 	char                  serial_buf[16];
 	char                  time_buf[64];
 	char                  temp_buf[64];
-	char                  send_buf[128];
 	char                  buf[512];
-	char                  data_buff[512];
 	socket_t              sock;
+	packdata_t            packdata;
 	struct timeval        tv;
 	struct tm            *st;
 	char                 *servip = NULL;
@@ -129,12 +135,21 @@ int main(int argc, char **argv)
 		if( (current_time-collet_time) >= itval )
 		{
 			sample = 1;
+			memset(&packdata, 0, sizeof(packdata));
 			/* 获取当前的时间 */
 			collet_time=get_time(time_buf);
 			/* 获取当前的温度 */
 			get_temp(temp_buf);
 			/* 获取产品序列号 */
 			get_serial(serial_buf);
+			/* 将采集的数据都放到packdata结构体里面 */
+			packdata.data_time = time_buf;
+			packdata.data_serial = serial_buf;
+			packdata.data_temp = temp_buf;
+
+
+			log_debug("time= %s, temp= %s, serial= %s\n",
+					packdata.data_time, packdata.data_temp, packdata.data_serial);
 		}
 
 		else
@@ -143,7 +158,7 @@ int main(int argc, char **argv)
 			log_info("It's not sampling time\n");
 		}
 
-		/* 判断socket连没连上，如果没连上就连接服务器 */
+		/* 判断socket连没连上，如果没连上就重新连接服务器 */
 		if(socket_client_judge(sockfd) < 0)
 		{
 			if( sockfd > 0)
@@ -178,10 +193,7 @@ int main(int argc, char **argv)
 		/* socket连上了且数据有采样 */
 		if( sample )
 		{
-			memset(data_buff,0,sizeof(data_buff));
-			sprintf(data_buff,"%s/%s/%s",time_buf,serial_buf,temp_buf);
-			log_debug("data_buff: %s\n", data_buff);
-			rv = write(sockfd,data_buff,sizeof(data_buff));
+			rv = socket_client_send(sockfd, packdata);
 			if(rv < 0)
 			{
 				/* 把没发送成功的数据插入到数据库 */
