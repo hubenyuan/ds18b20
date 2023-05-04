@@ -17,12 +17,6 @@ int get_sqlite_create_db();
 
 int sqlite_insert_data(char *buf);
 
-int sqlite_maxid(int *maxid);
-
-int sqlite_select_data(void);
-
-int sqlite_delete_data(void);
-
 int sqlite_close_db(void);
 
 #endif
