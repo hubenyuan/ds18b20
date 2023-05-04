@@ -92,11 +92,6 @@ int main(int argc, char **argv)
 	/* 创建连接数据库并且创建名为server_data的表 */
 	get_sqlite_create_db();
 
-	/* 删除数据库里面表的所有数据 */
-	//sqlite_delete_data();
-	
-	/* 打印出数据库表里面的数据 */
-	//sqlite_select_data();
 
 	if( (listenfd=socket_server_init( NULL, serv_port)) < 0 )
 	{
