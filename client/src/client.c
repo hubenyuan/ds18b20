@@ -31,7 +31,6 @@ typedef struct socket_s
 	char     *servip;
 } socket_t;
 
-
 int socket_client_init(socket_t *sock, char *hostname, int port)
 {
 	sock->sockfd = -1;
@@ -56,29 +55,29 @@ int socket_client_connect(socket_t *sock)
 	int                   cn = -1;
 	struct sockaddr_in    servaddr;
 
-	*sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if(sockfd < 0)
+	(sock->sockfd) = socket(AF_INET, SOCK_STREAM, 0);
+	if( (sock->sockfd) < 0 )
 	{
 		log_error("Create socket failur %s\n", strerror(errno));
 		return -1;
 	}
-	log_info("Create socket[%d] successfully!\n", *sockfd);
+	log_info("Create socket[%d] successfully!\n", (sock->sockfd));
 
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family=AF_INET;
-	servaddr.sin_port=htons(*port);
-	inet_aton(servip, &servaddr.sin_addr);
+	servaddr.sin_port=htons(sock->port);
+	inet_aton( (sock->servip), &servaddr.sin_addr );
 	
-	cn = connect( *sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr) );
+	cn = connect( (sock->sockfd), (struct sockaddr *)&servaddr, sizeof(servaddr) );
 
 	if(cn < 0)
 	{
-		log_warn("Connect to server: %s\n",strerror(errno));
+		log_warn("Connect to server failure: %s\n",strerror(errno));
 		socket_close(sock);
 	}
 	else
 	{
-		log_info("Connect to server successfully!\n");
+		log_info("Connect to server [%s:%d] successfully!\n", sock->servip, sock->port);
 	}
 
 	return cn;
@@ -87,22 +86,49 @@ int socket_client_connect(socket_t *sock)
 int socket_client_judge(int sockfd)
 {
 	struct tcp_info   info;
-
-	if(sockfd <= 0)
-	{
-		return 0;
-	}
 	int len = sizeof(info);
+	int rv = -1;
 
-	getsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &info, (socklen_t *) &len);
-	if((info.tcpi_state == 1))
+	if(sockfd < 0)
+	{
+		log_error("Get socket status error: %s\n", strerror(errno));
+		return -1;
+	}
+
+	rv = getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *) &len);
+	if(rv < 0)
 	{
 		log_info("socket connected\n");
-		return 1;
+		return -2;
+	}
+
+	if(info.tcpi_state == 1)
+	{
+		log_info("socket connected\n");
 	}
 	else
 	{
 		log_error("socket disconnected\n");
 		return 0;
+	}
+}
+
+int socket_client_send(int sockfd, packdata_t packdata)
+{
+	int          rv = -1;
+	char         data_buf[256];
+
+	memset(data_buf, 0, sizeof(data_buf));
+	sprintf(data_buf, "%s/%s/%s",packdata.data_time, packdata.data_serial, packdata.data_temp);
+
+	log_debug("data_buf= %s\n", data_buf);
+	rv = write(sockfd,data_buf,strlen(data_buf))
+	if(rv < 0)
+	{
+		log_error("Send data to server failure: %s\n",strerror(error));
+	}
+	else
+	{
+		log_info("Send data to server successfully\n");
 	}
 }
