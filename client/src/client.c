@@ -11,31 +11,44 @@
  *                 
  ********************************************************************************/
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <getopt.h>
+#include <time.h>
+
 #include "logger.h"
 
 typedef struct socket_s
 {
-	int       fd;
+	int       sockfd;
 	int       port;
-	char     *serverip;
+	char     *servip;
 } socket_t;
 
-int socket_close(socket_t *sock)
-{
-	close(sock->sockfd);
-	sock->fd = -1;
-}
 
 int socket_client_init(socket_t *sock, char *hostname, int port)
 {
-	sock->fd = -1;
+	sock->sockfd = -1;
 
 	/* 域名解析 */
-	sock->serverip = hostname;
+	sock->servip = hostname;
 	
 	sock->port = port;
 
 	return 0;
+}
+
+
+int socket_close(socket_t *sock)
+{
+	close(sock->sockfd);
+	sock->sockfd = -1;
 }
 
 int socket_client_connect(socket_t *sock)
@@ -54,15 +67,14 @@ int socket_client_connect(socket_t *sock)
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family=AF_INET;
 	servaddr.sin_port=htons(*port);
-	net_aton(servip, &servaddr.sin_addr);
+	inet_aton(servip, &servaddr.sin_addr);
 	
 	cn = connect( *sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr) );
 
 	if(cn < 0)
 	{
-		log_warn("Connect to server[%s:%d] failure: %s\n",servip, port, strerror(errno));
+		log_warn("Connect to server: %s\n",strerror(errno));
 		socket_close(sock);
-		return -2;
 	}
 	else
 	{
@@ -76,13 +88,13 @@ int socket_client_judge(int sockfd)
 {
 	struct tcp_info   info;
 
-	if(sockfd < 0)
+	if(sockfd <= 0)
 	{
 		return 0;
 	}
 	int len = sizeof(info);
 
-	getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *) &len);
+	getsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &info, (socklen_t *) &len);
 	if((info.tcpi_state == 1))
 	{
 		log_info("socket connected\n");
@@ -90,7 +102,7 @@ int socket_client_judge(int sockfd)
 	}
 	else
 	{
-		log_errno("socket disconnected\n");
+		log_error("socket disconnected\n");
 		return 0;
 	}
 }
