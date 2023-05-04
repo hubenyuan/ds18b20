@@ -20,6 +20,9 @@ int socket_client_connect(socket_t *sock);
 
 int socket_client_judge(int sockfd);
 
+int socket_client_send(int sockfd, packdata_t packdata);
+
 int socket_close(socket_t *sock);
+
 #endif
 
