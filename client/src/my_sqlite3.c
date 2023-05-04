@@ -132,7 +132,7 @@ int sqlite_maxid(int * maxid)
 
 
 /* 获取数据库表里面的内容并且发送到服务器 */ 
-int sqlite_send_data(char *send_buf)
+int sqlite_send_data(packdata_t *pack_data)
 {
     char            select_buf[128];
     char           *zErrMsg;
