@@ -15,7 +15,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
-#define  list_name "server_data"
 
 #include "logger.h"
 
@@ -34,12 +33,16 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 }
 
 
-/*创建连接数据库并且创建名为packaged_data的表*/
-int get_sqlite_create_db()
+/*创建连接数据库并且创建叫产品序列号名字的表*/
+int get_sqlite_create_db(char *buf)
 {
     char              create_buf[128];
     char             *zErrMsg;
     int               rc;
+	char             *s1,*s2,*s3;
+	s1 = strtok(buf,"/");
+	s2 = strtok(NULL,"/");
+	s3 = strtok(NULL,"/");
 
     rc = sqlite3_open("server.db", &db);
 
@@ -54,7 +57,7 @@ int get_sqlite_create_db()
     }
 
 	memset(create_buf,0,sizeof(create_buf));
-	sprintf(create_buf,"CREATE TABLE %s(ID INTEGER PRIMARY KEY, time CHAR(80),serial CHAR(30),temperature CHAR(50));",list_name);
+	sprintf(create_buf,"CREATE TABLE %s(ID INTEGER PRIMARY KEY, time CHAR(80),serial CHAR(30),temperature CHAR(50));",str2);
 	rc = sqlite3_exec(db,create_buf,callback,0,&zErrMsg);
 
 	if( rc != SQLITE_OK )
@@ -100,65 +103,19 @@ int sqlite_insert_data(char *buf)
 	return 0;
 }
 
-/* 获取数据库表里面的数据并且打印出来 */ 
-int sqlite_select_data(void)
-{
-	char            select_buf[128];
-	int             rc;
-	int             colnum;
-	int             counts;
-	int             rownum;
-	char           *zErrMsg;
-	char	      **result;
-
-	memset(select_buf,0,sizeof(select_buf));
-
-	sprintf(select_buf,"SELECT * FROM %s;",list_name);
-
-	rc = sqlite3_exec(db, select_buf, callback, NULL, &zErrMsg);
-	if(rc != SQLITE_OK)
-	{
-		log_warn("select  data failure: %s\n",zErrMsg);
-		sqlite3_free(zErrMsg);
-		return -1;
-	}
-
-	return 0;
-}
-
-/* 删除数据库表里面的数据 */
-int sqlite_delete_data(void)
-{
-	int           rc;
-	char         *zErrMsg;
-	char          delete_buf[128];
-	
-	memset(delete_buf,0,sizeof(delete_buf));
-	sprintf(delete_buf,"DELETE FROM %s;",list_name);
-	rc = sqlite3_exec(db, delete_buf, callback, 0, &zErrMsg);
-
-	if( rc != SQLITE_OK )
-	{
-		log_warn("delete server_data failure: %s\n",zErrMsg);
-		sqlite3_free(zErrMsg);
-		return -1;
-	}
-	log_info("delete packaged_data successfully\n");
-	return 0;
-}
-
+/* 关闭sqlite3数据库 */
 int sqlite_close_db(void)
 {
-	char       *zErrMsg;
-	int         rc;
+    char       *zErrMsg;
+    int         rc; 
 
-	rc = sqlite3_close(db);
-	if(rc != SQLITE_OK)
-	{
-		log_warn("close database failure: %s\n",zErrMsg);
-		sqlite3_free(zErrMsg);
-		return -1;
-	}
-	log_info("close database successfully\n");
-	return 0;
+    rc = sqlite3_close(db);
+    if(rc != SQLITE_OK)
+    {   
+        log_warn("close database failure: %s\n",zErrMsg);
+        sqlite3_free(zErrMsg);
+        return -1; 
+    }   
+    log_info("close database successfully\n");
+    return 0;
 }
