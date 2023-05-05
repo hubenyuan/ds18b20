@@ -21,7 +21,9 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <time.h>
+#include <netinet/tcp.h>
 
+#include "packdata.h"
 #include "logger.h"
 
 typedef struct socket_s
@@ -31,25 +33,14 @@ typedef struct socket_s
 	char     *servip;
 } socket_t;
 
-int socket_client_init(socket_t *sock, char *hostname, int port)
-{
-	sock->sockfd = -1;
-
-	/* 域名解析 */
-	sock->servip = hostname;
-	
-	sock->port = port;
-
-	return 0;
-}
-
-
+/* 关闭socket客户端并且把sockfd置为-1 */
 int socket_close(socket_t *sock)
 {
 	close(sock->sockfd);
 	sock->sockfd = -1;
 }
 
+/* socket客户端开始连接服务器 */
 int socket_client_connect(socket_t *sock)
 {
 	int                   cn = -1;
@@ -83,6 +74,7 @@ int socket_client_connect(socket_t *sock)
 	return cn;
 }
 
+/* 判断客户端有没有连接服务器 */
 int socket_client_judge(int sockfd)
 {
 	struct tcp_info   info;
@@ -113,6 +105,7 @@ int socket_client_judge(int sockfd)
 	}
 }
 
+/* 把采集到的数据发送给服务器 */
 int socket_client_send(int sockfd, packdata_t packdata)
 {
 	int          rv = -1;
@@ -122,10 +115,10 @@ int socket_client_send(int sockfd, packdata_t packdata)
 	sprintf(data_buf, "%s/%s/%s",packdata.data_time, packdata.data_serial, packdata.data_temp);
 
 	log_debug("data_buf= %s\n", data_buf);
-	rv = write(sockfd,data_buf,strlen(data_buf))
+	rv = write(sockfd,data_buf,strlen(data_buf));
 	if(rv < 0)
 	{
-		log_error("Send data to server failure: %s\n",strerror(error));
+		log_error("Send data to server failure: %s\n",strerror(errno));
 	}
 	else
 	{
