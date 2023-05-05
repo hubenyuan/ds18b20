@@ -12,6 +12,7 @@
  ********************************************************************************/
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -26,23 +27,10 @@
 #include "my_sqlite3.h"
 #include "logger.h"
 #include "client.h"
+#include "packdata.h"
 
 int get_serial(char *serial_buf);
 static inline void print_usage(char *progname);
-
-typedef struct socket_s
-{
-	int     fd;
-	int     port;
-	char    hostname;
-} socket_t;
-
-typedef struct packdata_s
-{
-	char    data_time[64];
-	char    data_serial[16];
-	char    data_temp[64];
-} packdata_t;
 
 
 int main(int argc, char **argv)
@@ -53,10 +41,11 @@ int main(int argc, char **argv)
 	int                   itval = 10;
 	int                   founds = 0;
 	int                   sample = 0;
-	static double         collet_time = 0;
-	static double         current_time = 0;                 
+	time_t                collet_time = 0;
+	time_t                current_time = 0;                 
 	int                   ch;
 	int                   maxid;
+	char                  hostname[64] = "192.168.68.129";
 	int                   idx;
 	char                  serial_buf[16];
 	char                  time_buf[64];
@@ -66,7 +55,7 @@ int main(int argc, char **argv)
 	packdata_t            packdata;
 	struct timeval        tv;
 	struct tm            *st;
-	char                 *servip = NULL;
+	char                 *servip;
 
 	struct option       opts[] = {
 		{"hostname", required_argument, NULL, 'h'},
@@ -87,7 +76,7 @@ int main(int argc, char **argv)
 				port=atoi(optarg);
 				break;
 			case 't':
-				interval=atoi(optarg);
+				itval=atoi(optarg);
 				break;
 			case 'H':
 				print_usage(argv[0]);
@@ -111,7 +100,8 @@ int main(int argc, char **argv)
 
 
 	/* 将socket初始化 */
-	if( socket_client_init(&sock, hostname, port) < 0)
+	rv = socket_client_init(&sock, hostname, port);
+	if(rv < 0)
 	{
 		log_warn("socket initialization failure\n");
 		return 0;
@@ -130,23 +120,23 @@ int main(int argc, char **argv)
 	while(1)
 	{
 		/* 判断到没到采样时间，时间到了就开始采样 */
-		gettimeofday(&tv, NULL);
-		current_time=tv.tv_sec;
+		current_time = time(NULL);
 		if( (current_time-collet_time) >= itval )
 		{
 			sample = 1;
 			memset(&packdata, 0, sizeof(packdata));
 			/* 获取当前的时间 */
-			collet_time=get_time(time_buf);
+			get_time(time_buf);
 			/* 获取当前的温度 */
 			get_temp(temp_buf);
 			/* 获取产品序列号 */
 			get_serial(serial_buf);
 			/* 将采集的数据都放到packdata结构体里面 */
-			packdata.data_time = time_buf;
-			packdata.data_serial = serial_buf;
-			packdata.data_temp = temp_buf;
+			strcpy(packdata.data_time, time_buf);
+			strcpy(packdata.data_serial, serial_buf);
+			strcpy(packdata.data_temp, temp_buf);
 
+			collet_time = current_time;
 
 			log_debug("time= %s, temp= %s, serial= %s\n",
 					packdata.data_time, packdata.data_temp, packdata.data_serial);
@@ -163,7 +153,7 @@ int main(int argc, char **argv)
 		{
 			if( sockfd > 0)
 			{
-				socket_close(sock);
+				socket_close(&sock);
 			}
 
 			if( socket_client_connect(&sock) > 0 )
@@ -173,12 +163,12 @@ int main(int argc, char **argv)
 			else
 			{
 				log_error("socket client connect againt failed\n");
-				socket_close(sock);
+				socket_close(&sock);
 			}
 		}
 
 		/* socket断线重连失败，且有采样，把采样数据插入到数据库 */
-		if(sockfd<0)
+		if(sockfd < 0)
 		{
 			if( sample )
 			{
@@ -199,7 +189,7 @@ int main(int argc, char **argv)
 				/* 把没发送成功的数据插入到数据库 */
 				sqlite_insert_data(time_buf, serial_buf, temp_buf);
 				log_error("send data failure: %s\n",strerror(errno));
-				socket_close(sock);
+				socket_close(&sock);
 			}
 			else
 			{
@@ -214,18 +204,21 @@ int main(int argc, char **argv)
 			if(sqlite_maxid(&maxid) > 0)
 			{
 				/* 把数据库里面最大id数的数据发送到服务器 */
-				sqlite_send_data(send_buf);
-				rv=write(sockfd,send_buf,sizeof(send_buf));
+				sqlite_send_data(&packdata);
+
 				/* 把数据库里面最大id数的数据删除 */
 				sqlite_delete_data();
+
+				rv = socket_client_send(sockfd, packdata);
 				if(rv < 0)
 				{
 					log_error("send data failure: %s\n",strerror(errno));
-					socket_close(sock)
+					socket_close(&sock);
 				}
 				else
 				{
 					log_info("sqlite3 data send successfully\n");
+					log_debug("maxid= %d\n", maxid);
 				}
 			}
 			else
@@ -236,7 +229,7 @@ int main(int argc, char **argv)
 	}
 
 	sqlite_close_db();
-	socket_close(sock);
+	socket_close(&sock);
 	return 0;
 }
 
