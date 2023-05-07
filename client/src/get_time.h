@@ -10,8 +10,8 @@
  *      ChangeLog:  1, Release initial version on "05/02/2023 03:54:29 PM"
  *                 
  ********************************************************************************/
-#ifndef   TIME_H
-#define   TIME_H
+#ifndef   GET_TIME_H_
+#define   GET_TIME_H_
 
 /* 获取当前的时间 */
 int get_time(char *time_buf);
