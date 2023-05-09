@@ -13,7 +13,7 @@
 #ifndef  SERVER_SQLITE3_H
 #define  SERVER_SQLITE3_H
 
-int get_sqlite_create_db();
+int sqlite_init(void);
 
 int sqlite_insert_data(char *buf);
 
