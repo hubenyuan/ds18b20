@@ -18,6 +18,8 @@
 
 #include "logger.h"
 
+#define  list_name "serv_db"
+
 static sqlite3  *db;
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName)
@@ -34,69 +36,61 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 
 
 /*创建连接数据库并且创建叫产品序列号名字的表*/
-int get_sqlite_create_db(char *buf)
+int sqlite_init(void)
 {
-    char              create_buf[128];
     char             *zErrMsg;
-    int               rc;
-	char             *s1,*s2,*s3;
-	s1 = strtok(buf,"/");
-	s2 = strtok(NULL,"/");
-	s3 = strtok(NULL,"/");
+    int               rv;
 
-    rc = sqlite3_open("server.db", &db);
+    rv = sqlite3_open("server.db", &db);
 
-    if( rc )
+    if( !rv )
     {
-    	log_warn("Can't open database: %s\n", strerror(errno));
+    	log_warn("Can't open database: %s\n", zErrMsg);
         return -1;
     }
     else
     {
         log_info("Opened database successfully.\n");
     }
-
-	memset(create_buf,0,sizeof(create_buf));
-	sprintf(create_buf,"CREATE TABLE %s(ID INTEGER PRIMARY KEY, time CHAR(80),serial CHAR(30),temperature CHAR(50));",str2);
-	rc = sqlite3_exec(db,create_buf,callback,0,&zErrMsg);
-
-	if( rc != SQLITE_OK )
-    {
-        log_warn("failure to create %s: %s\n",list_name,zErrMsg);
-        sqlite3_free(zErrMsg);
-        return -1;
-    }
-    else
-    {
-        log_info("create %s successfully\n",list_name);
-    }
-
-    return 0;
 }
 
-/*向数据库表里面插入数据*/
+
+/*创建表名并向数据库表里面插入数据*/
 int sqlite_insert_data(char *buf)
 {
-	char      *zErrMsg;
-	int        rc;
-	char       insert_buf[512];
+    char       create_buf[128];
+	int        rv;
 	int        rd;
+	char       insert_buf[512];
+	char      *zErrMsg;
 	char      *str1,*str2,*str3;
 	str1 = strtok(buf,"/");
 	str2 = strtok(NULL,"/");
 	str3 = strtok(NULL,"/");
 
+	memset(create_buf,0,sizeof(create_buf));
+	sprintf(create_buf,"CREATE TABLE %s(ID INTEGER PRIMARY KEY, time CHAR(80),serial CHAR(30),temperature CHAR(50));",str2);
+	rv = sqlite3_exec(db,create_buf,callback,0,&zErrMsg);
+	if( rv != SQLITE_OK )
+    {   
+        log_warn("failure to create %s: %s\n",str2, zErrMsg);
+        sqlite3_free(zErrMsg);
+    }   
+	else
+	{
+		log_info("create list %s successfully\n", str2);
+	}
+
 	memset(insert_buf, 0, sizeof(insert_buf));
-	sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%s' );", list_name,str1, str2, str3);
+	sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%s' );", str2, str1, str2, str3);
 
-	rc = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
+	rd = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
 
-	if(rc != SQLITE_OK)
+	if(rd != SQLITE_OK)
 	{
 		
 		log_warn("insert data failure: %s\n",zErrMsg);
 		sqlite3_free(zErrMsg);
-		return -1;
 	}
 
 	log_info("Insert  data successfully\n");
