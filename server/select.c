@@ -100,6 +100,7 @@ int main(int argc, char **argv)
 	}
 	log_info("%s server start to listen on port %d\n",argv[0],serv_port);
 
+	/* 程序后台运行 */
 	if( daemon_run )
 	{
 		daemon(0, 0);
@@ -163,6 +164,7 @@ int main(int argc, char **argv)
 				close(connfd);
 			}
 		}
+		/* socket已连接 */
 		else
 		{
 			memset(buf, 0, sizeof(buf));
@@ -176,6 +178,7 @@ int main(int argc, char **argv)
 					close(fds_array[i]);
 					fds_array[i] = -1;
 				}
+				/* 已经接收到客户端的数据 */
 				else
 				{
 
@@ -199,7 +202,8 @@ int main(int argc, char **argv)
 
 CleanUp:
 	close(listenfd);
-	sqlite_close_db();
+	/* 关闭数据库 */
+	sqlite_close();
 	return 0;
 }
 
