@@ -98,7 +98,7 @@ int sqlite_insert_data(char *buf)
 }
 
 /* 关闭sqlite3数据库 */
-int sqlite_close_db(void)
+int sqlite_close(void)
 {
     char       *zErrMsg;
     int         rc; 
