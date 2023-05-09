@@ -18,8 +18,11 @@
 #define  list_name "packaged_data"
 
 #include "logger.h"
+#include "packdata.h"
 
 static sqlite3  *db;
+
+
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 {
@@ -34,7 +37,7 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 
 
 /*创建连接数据库并且创建名为packaged_data的表*/
-int get_sqlite_create_db()
+int get_sqlite_create_db(void)
 {
     char              create_buf[128];
     char             *zErrMsg;
@@ -72,7 +75,7 @@ int get_sqlite_create_db()
 }
 
 /*向数据库表里面插入数据*/
-int sqlite_insert_data(char *time_buf, char *serial_buf, char *temp_buf)
+int sqlite_insert_data(packdata_t *packdata)
 {
     char      *zErrMsg;
     int        rc;
@@ -81,7 +84,7 @@ int sqlite_insert_data(char *time_buf, char *serial_buf, char *temp_buf)
     
 
     memset(insert_buf, 0, sizeof(insert_buf));
-    sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%s' );", list_name,time_buf, serial_buf, temp_buf);
+    sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%s' );", list_name,packdata->data_time, packdata->data_serial, packdata->data_temp);
 
     rc = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
 
@@ -98,7 +101,7 @@ int sqlite_insert_data(char *time_buf, char *serial_buf, char *temp_buf)
 }
 
 /*获取数据库数据最大ID并且判断数据库里面存不存在数据*/
-int sqlite_maxid(int * maxid)
+int sqlite_maxid(int *maxid)
 {
     char     *zErrMsg;
     char    **result;
@@ -131,8 +134,8 @@ int sqlite_maxid(int * maxid)
 }
 
 
-/* 获取数据库表里面的内容并且发送到服务器 */ 
-int sqlite_send_data(packdata_t *pack_data)
+/* 获取数据库id数最大的数据 */ 
+int sqlite_select_data(packdata_t *packdata)
 {
     char            select_buf[128];
     char           *zErrMsg;
@@ -153,13 +156,18 @@ int sqlite_send_data(packdata_t *pack_data)
         sqlite3_free(zErrMsg);
         return -1;
     }
-    sprintf(send_buf,"%s/%s/%s",result[1*colnum+1],result[1*colnum+2],result[1*colnum+3]);
+
+	memset(packdata, 0, sizeof(packdata));
+
+	strcpy(packdata->data_time, result[1*colnum+1]);
+	strcpy(packdata->data_serial, result[1*colnum+2]);
+	strcpy(packdata->data_temp, result[1*colnum+3]);
 
     return 0;
 }
 
 /* 删除数据库表里面ID最大的数据 */
-int sqlite_delete_data()
+int sqlite_delete_data(void)
 {
     int           rc;
     char         *zErrMsg;
@@ -176,7 +184,7 @@ int sqlite_delete_data()
         sqlite3_free(zErrMsg);
         return -1;
     }
-    log_info ("delete packaged_data successfully\n");
+    log_info("delete packaged_data successfully\n");
     return 0;
 }
 
