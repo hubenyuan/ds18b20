@@ -14,11 +14,21 @@
 #ifndef    CLIENT_H_
 #define    CLIENT_H_
 
+typedef struct socket_s
+{
+    int     fd;
+    int     port;
+	int     connected;
+    char    hostip[32];
+} socket_t;
+
+int socket_client_init(socket_t *sock, char *hostname, int port);
+
 int socket_client_connect(socket_t *sock);
 
-int socket_client_judge(int sockfd);
+int socket_client_judge(socket_t *sock);
 
-int socket_client_send(int sockfd, packdata_t packdata);
+int socket_client_send(socket_t *sock, packdata_t packdata);
 
 int socket_close(socket_t *sock);
 
