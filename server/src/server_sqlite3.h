@@ -17,7 +17,7 @@ int sqlite_init(void);
 
 int sqlite_insert_data(char *buf);
 
-int sqlite_close_db(void);
+int sqlite_close(void);
 
 #endif
 
