@@ -12,16 +12,17 @@
  ********************************************************************************/
 #ifndef  MY_SQLITE3_H
 #define  MY_SQLITE3_H
+#include "packdata.h"
 
-int get_sqlite_create_db();
+int get_sqlite_create_db(void);
 
-int sqlite_insert_data(char *time_buf, char *serial_buf, char *temp_buf);
+int sqlite_insert_data(packdata_t *packdata);
 
 int sqlite_maxid(int *maxid);
 
-int sqlite_send_data(char *send_buf);
+int sqlite_select_data(packdata_t *packdata);
 
-int sqlite_delete_data();
+int sqlite_delete_data(void);
 
 int sqlite_close_db(void);
 
