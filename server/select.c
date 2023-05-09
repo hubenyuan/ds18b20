@@ -89,8 +89,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-	/* 创建连接数据库并且创建名为server_data的表 */
-	get_sqlite_create_db();
+	/* 创建连接数据库 */
+	sqlite_init();
 
 
 	if( (listenfd=socket_server_init( NULL, serv_port)) < 0 )
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
 
 					log_info("socket[%d] read get %d bytes data: %s\n", fds_array[i], rv, buf);
 
-					/* 向数据库表里面插入数据 */
+					/* 创建表并向数据库表里面插入数据 */
 					sqlite_insert_data(buf);
 					
 					for(j=0; j<rv; j++)
