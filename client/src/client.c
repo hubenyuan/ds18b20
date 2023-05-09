@@ -25,69 +25,80 @@
 
 #include "packdata.h"
 #include "logger.h"
+#include "client.h"
 
-typedef struct socket_s
+
+/* 初始化socket客户端 */
+int socket_client_init(socket_t *sock, char *hostname, int port)
 {
-	int       sockfd;
-	int       port;
-	char     *servip;
-} socket_t;
+	sock->fd = -1;
 
-/* 关闭socket客户端并且把sockfd置为-1 */
+	strcpy(sock->hostip, hostname);
+
+	sock->port = port; 
+
+	sock->connected = 0;
+
+	return 0;
+
+}
+
+/* 关闭socket客户端并且把fd置为-1 */
 int socket_close(socket_t *sock)
 {
-	close(sock->sockfd);
-	sock->sockfd = -1;
+	close(sock->fd);
+	sock->fd = -1;
+	return 0;
 }
 
 /* socket客户端开始连接服务器 */
 int socket_client_connect(socket_t *sock)
 {
-	int                   cn = -1;
+	int                   rv = -1;
 	struct sockaddr_in    servaddr;
 
-	(sock->sockfd) = socket(AF_INET, SOCK_STREAM, 0);
-	if( (sock->sockfd) < 0 )
+	(sock->fd) = socket(AF_INET, SOCK_STREAM, 0);
+	if( (sock->fd) < 0 )
 	{
 		log_error("Create socket failur %s\n", strerror(errno));
 		return -1;
 	}
-	log_info("Create socket[%d] successfully!\n", (sock->sockfd));
+	log_info("Create socket[%d] successfully!\n", (sock->fd));
 
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family=AF_INET;
 	servaddr.sin_port=htons(sock->port);
-	inet_aton( (sock->servip), &servaddr.sin_addr );
+	inet_aton( (sock->hostip), &servaddr.sin_addr );
 	
-	cn = connect( (sock->sockfd), (struct sockaddr *)&servaddr, sizeof(servaddr) );
+	rv=connect( (sock->fd), (struct sockaddr *)&servaddr, sizeof(servaddr) );
 
-	if(cn < 0)
+	if(rv < 0)
 	{
 		log_warn("Connect to server failure: %s\n",strerror(errno));
 		socket_close(sock);
 	}
 	else
 	{
-		log_info("Connect to server [%s:%d] successfully!\n", sock->servip, sock->port);
+		log_info("Connect to server [%s:%d] successfully!\n", sock->hostip, sock->port);
 	}
 
-	return cn;
+	return rv;
 }
 
 /* 判断客户端有没有连接服务器 */
-int socket_client_judge(int sockfd)
+int socket_client_judge(socket_t *sock)
 {
 	struct tcp_info   info;
 	int len = sizeof(info);
 	int rv = -1;
 
-	if(sockfd < 0)
+	if(sock->fd < 0)
 	{
 		log_error("Get socket status error: %s\n", strerror(errno));
 		return -1;
 	}
 
-	rv = getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *) &len);
+	rv=getsockopt(sock->fd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *) &len);
 	if(rv < 0)
 	{
 		log_info("socket connected\n");
@@ -97,16 +108,20 @@ int socket_client_judge(int sockfd)
 	if(info.tcpi_state == 1)
 	{
 		log_info("socket connected\n");
+		sock->connected = 1;
 	}
 	else
 	{
 		log_error("socket disconnected\n");
-		return 0;
+		sock->connected = 0;
+		return -3;
 	}
+
+	return 0;
 }
 
 /* 把采集到的数据发送给服务器 */
-int socket_client_send(int sockfd, packdata_t packdata)
+int socket_client_send(socket_t *sock, packdata_t packdata)
 {
 	int          rv = -1;
 	char         data_buf[256];
@@ -115,13 +130,14 @@ int socket_client_send(int sockfd, packdata_t packdata)
 	sprintf(data_buf, "%s/%s/%s",packdata.data_time, packdata.data_serial, packdata.data_temp);
 
 	log_debug("data_buf= %s\n", data_buf);
-	rv = write(sockfd,data_buf,strlen(data_buf));
+	rv = write(sock->fd,data_buf,strlen(data_buf));
 	if(rv < 0)
 	{
-		log_error("Send data to server failure: %s\n",strerror(errno));
+		log_warn("Send data to server failure: %s\n",strerror(errno));
 	}
 	else
 	{
 		log_info("Send data to server successfully\n");
 	}
+	return 0;
 }
