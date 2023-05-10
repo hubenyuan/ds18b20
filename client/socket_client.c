@@ -40,11 +40,11 @@ int main(int argc, char **argv)
 	int                   port = 8888;    //默认端口
 	int                   itval = 6;     //设置上报时间，默认6秒
 	int                   sample = 0;     //采样标志符，为0没采样，为1采了样
-	time_t                collet_time = 0;     //上次采样时间戳
-	time_t                current_time = 0;    //当前时间戳           
 	int                   ch;
 	int                   maxid;
 	int                   idx;
+	time_t                collet_time = 0;     //上次采样时间戳
+	time_t                current_time = 0;    //当前时间戳           
 	char                  hostname[64] = "192.168.68.129";   //默认IP
 	char                  serial_buf[16];
 	char                  time_buf[64];
