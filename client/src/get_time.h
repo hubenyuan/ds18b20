@@ -13,7 +13,6 @@
 #ifndef   GET_TIME_H_
 #define   GET_TIME_H_
 
-/* 获取当前的时间 */
 int get_time(char *time_buf);
 
 #endif
