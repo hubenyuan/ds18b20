@@ -16,7 +16,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <netdb.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -55,8 +57,36 @@ int socket_close(socket_t *sock)
 int socket_client_connect(socket_t *sock)
 {
 	int                   rv = -1;
+	int                   get_back = -1;
+	struct addrinfo       hints;     //定义一个结构体
 	struct sockaddr_in    servaddr;
+    struct addrinfo      *res;      //定义函数返回的结构体链表的指针
+    struct addrinfo      *read;     //定义一个遍历链表的指针
+	struct sockaddr_in   *addr;     //定义一个存储返回域名IP信息的结构体指针
 
+	/* 域名解析 */
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_flags = AI_PASSIVE; 
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_family = AF_INET;
+	hints.ai_protocol = 0;
+
+	get_back = getaddrinfo(sock->hostip, NULL, &hints, &res);  //调用函数
+
+	if(get_back != 0)
+	{
+		log_error("Analyze failure: %s\n", strerror(errno));
+		return -1;
+	}
+	log_info("Analyze successfully\n");    //调用函数成功
+
+	for(read = res; read != NULL; read = read->ai_next)  //遍历链表每一个节点，查询关于存储返回的IP的信息
+	{
+		addr = (struct sockaddr_in *)read->ai_addr;    //将返回的IP信息存储在addr指向的结构体中
+		log_info("IP address: %s\n", inet_ntoa(addr->sin_addr));   //inet_ntoa函数将字符串类型IP地址转化为点分十进制
+	}
+
+	/* 开始连接服务器 */
 	(sock->fd) = socket(AF_INET, SOCK_STREAM, 0);
 	if( (sock->fd) < 0 )
 	{
@@ -82,6 +112,7 @@ int socket_client_connect(socket_t *sock)
 		log_info("Connect to server [%s:%d] successfully!\n", sock->hostip, sock->port);
 	}
 
+	freeaddrinfo(res);    //释放getaddrinfo函数调用动态获取的空间
 	return rv;
 }
 
