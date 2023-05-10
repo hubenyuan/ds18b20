@@ -18,7 +18,7 @@ typedef struct socket_s
 {
     int     fd;
     int     port;
-	int     connected;
+    int     connected;
     char    hostip[32];
 } socket_t;
 
