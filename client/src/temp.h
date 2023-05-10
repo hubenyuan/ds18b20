@@ -14,7 +14,6 @@
 #ifndef  TEMP_H
 #define  TEMP_H
 
-/* 获取当前温度 */
-int get_temporary(char *temp_buf);
+int get_temp(char *temp_buf);
 
 #endif
