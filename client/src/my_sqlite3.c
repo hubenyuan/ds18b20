@@ -15,13 +15,13 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
-#define  list_name "packaged_data"
 
 #include "logger.h"
 #include "packdata.h"
 
-static sqlite3  *db;
+#define  list_name "packaged_data"
 
+static sqlite3  *db;
 
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName)
@@ -37,16 +37,16 @@ static int callback(void *NotUsed, int argc, char **argv, char **azColName)
 
 
 /*创建连接数据库并且创建名为packaged_data的表*/
-int get_sqlite_create_db(void)
+int sqlite_create_db(void)
 {
     char              create_buf[128];
-    char             *zErrMsg;
-    int               rc;
+    int               rv;
     char             *sql;
+    char             *zErrMsg;
 
-    rc = sqlite3_open("test.db", &db);
+    rv = sqlite3_open("test.db", &db);
 
-    if( rc )
+    if( rv )
     {
         log_warn("Can't open database: %s\n", strerror(errno));
         return -1;
@@ -58,9 +58,9 @@ int get_sqlite_create_db(void)
 
     memset(create_buf,0,sizeof(create_buf));
     sprintf(create_buf,"CREATE TABLE %s(ID INTEGER PRIMARY KEY, TIME CHAR(80),SERIAL CHAR(30),TEMPERATURE CHAR(50));",list_name);
-    rc = sqlite3_exec(db,create_buf,callback,0,&zErrMsg);
+    rv = sqlite3_exec(db,create_buf,callback,0,&zErrMsg);
 
-    if( rc != SQLITE_OK )
+    if( rv != SQLITE_OK )
     {
         log_warn("failure to create %s: %s\n",list_name,zErrMsg);
         sqlite3_free(zErrMsg);
@@ -77,18 +77,17 @@ int get_sqlite_create_db(void)
 /*向数据库表里面插入数据*/
 int sqlite_insert_data(packdata_t *packdata)
 {
-    char      *zErrMsg;
-    int        rc;
+    int        rv;
     char       insert_buf[256];
-    int        rd;
+    char      *zErrMsg;
     
 
     memset(insert_buf, 0, sizeof(insert_buf));
     sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%s' );", list_name,packdata->data_time, packdata->data_serial, packdata->data_temp);
 
-    rc = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
+    rv = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
 
-    if(rc != SQLITE_OK)
+    if(rv != SQLITE_OK)
     {
         
         log_warn("insert data failure: %s\n",zErrMsg);
@@ -103,20 +102,19 @@ int sqlite_insert_data(packdata_t *packdata)
 /*获取数据库数据最大ID并且判断数据库里面存不存在数据*/
 int sqlite_maxid(int *maxid)
 {
-    char     *zErrMsg;
-    char    **result;
     int       rownum;
     int       colnum;
-    int       rc;
-    char     *p;
+    int       rv;
     char      maxid_buf[128];
+    char     *zErrMsg;
+    char    **result;
     
 
     memset(maxid_buf,0,sizeof(maxid_buf));
     sprintf(maxid_buf,"SELECT count(*) from %s",list_name);
-    rc = sqlite3_get_table(db, maxid_buf, &result, &rownum, &colnum, &zErrMsg);
+    rv = sqlite3_get_table(db, maxid_buf, &result, &rownum, &colnum, &zErrMsg);
 
-    if(rc != SQLITE_OK)
+    if(rv != SQLITE_OK)
     {
         log_warn("query records count from database failure: %s\n",zErrMsg);
         sqlite3_free(zErrMsg);
@@ -138,19 +136,19 @@ int sqlite_maxid(int *maxid)
 int sqlite_select_data(packdata_t *packdata)
 {
     char            select_buf[128];
-    char           *zErrMsg;
-    int             rc;
+    int             rv;
     int             counts;
     int             rownum;
     int             colnum;
+    char           *zErrMsg;
     char          **result;
 
     memset(select_buf,0,sizeof(select_buf));
 
     sprintf(select_buf,"SELECT * FROM %s ORDER BY id DESC;",list_name);
 
-    rc = sqlite3_get_table(db, select_buf, &result, &rownum, &colnum, &zErrMsg);
-    if(rc != SQLITE_OK)
+    rv = sqlite3_get_table(db, select_buf, &result, &rownum, &colnum, &zErrMsg);
+    if(rv != SQLITE_OK)
     {
         log_warn("Obtaining data failure: %s\n",zErrMsg);
         sqlite3_free(zErrMsg);
@@ -169,16 +167,16 @@ int sqlite_select_data(packdata_t *packdata)
 /* 删除数据库表里面ID最大的数据 */
 int sqlite_delete_data(void)
 {
-    int           rc;
-    char         *zErrMsg;
+    int           rv;
     char          delete_buf[128];
+    char         *zErrMsg;
     
     memset(delete_buf,0,sizeof(delete_buf));
     sprintf(delete_buf,"DELETE FROM %s WHERE ID=(SELECT MAX(ID) FROM %s);",list_name,list_name);
 
-    rc = sqlite3_exec(db, delete_buf, callback, 0, &zErrMsg);
+    rv = sqlite3_exec(db, delete_buf, callback, 0, &zErrMsg);
 
-    if( rc != SQLITE_OK )
+    if( rv != SQLITE_OK )
     {
         log_warn("delete packaged_data failure: %s\n",zErrMsg);
         sqlite3_free(zErrMsg);
@@ -188,13 +186,14 @@ int sqlite_delete_data(void)
     return 0;
 }
 
+/* 关闭数据库 */
 int sqlite_close_db(void)
 {
+    int         rv;
     char       *zErrMsg;
-    int         rc;
 
-    rc = sqlite3_close(db);
-    if(rc != SQLITE_OK)
+    rv = sqlite3_close(db);
+    if(rv != SQLITE_OK)
     {
         log_warn("close database failure: %s\n",zErrMsg);
         sqlite3_free(zErrMsg);
