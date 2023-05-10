@@ -38,18 +38,17 @@ int main(int argc, char **argv)
 	int                   sockfd = -1;
 	int                   rv = -1;
 	int                   port = 8888;    //默认端口
-	int                   itval = 10;     //设置上报时间，默认10秒
+	int                   itval = 6;     //设置上报时间，默认6秒
 	int                   sample = 0;     //采样标志符，为0没采样，为1采了样
 	time_t                collet_time = 0;     //上次采样时间戳
 	time_t                current_time = 0;    //当前时间戳           
 	int                   ch;
 	int                   maxid;
-	char                  hostname[64] = "192.168.68.129";   //默认IP
 	int                   idx;
+	char                  hostname[64] = "192.168.68.129";   //默认IP
 	char                  serial_buf[16];
 	char                  time_buf[64];
 	char                  temp_buf[64];
-	char                  buf[512];
 	socket_t              sock;
 	packdata_t            packdata;
 
@@ -86,7 +85,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	if( logger_init("stdout", LOG_LEVEL_INFO) < 0)
+	if( logger_init("stdout", LOG_LEVEL_DEBUG) < 0)
 	{
 		fprintf(stderr, "initial logger system failure\n");
 		return 1;
@@ -100,7 +99,7 @@ int main(int argc, char **argv)
 	}
 
 	/* 创建数据库的表格 */
-	if(get_sqlite_create_db() < 0)
+	if(sqlite_create_db() < 0)
 	{
 		log_warn("sqlite3 initialization failed\n");
 	}
@@ -112,7 +111,7 @@ int main(int argc, char **argv)
 		if( (current_time-collet_time) >= itval )
 		{
 			sample = 1;
-			memset(&packdata, 0, sizeof(packdata));
+
 			/* 获取当前的时间 */
 			get_time(time_buf);
 			/* 获取当前的温度 */
@@ -158,6 +157,7 @@ int main(int argc, char **argv)
 			}
 			continue;
 		}
+
 		/* socket连上了且数据有采样 */
 		if( sample )
 		{
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
 			{
 				/* 把没发送成功的数据插入到数据库 */
 				sqlite_insert_data(&packdata);
-				log_error("send data failure: %s\n",strerror(errno));
+				log_error("send data failure\n");
 				socket_close(&sock);
 			}
 			else
@@ -185,27 +185,26 @@ int main(int argc, char **argv)
 				/* 把数据库里面最大id数的数据提取出来 */
 				if(sqlite_select_data(&packdata) < 0)
 				{
-					log_warn("database get data failure: %s\n", strerror(errno));
+					log_warn("database get data failure\n");
 					log_debug("maxid= %d\n", maxid);
 				}
 				else
 				{
-					/* 把数据库里面最大id数的数据删除 */
-					if(sqlite_delete_data() < 0)
+					/* 把数据库里面的id数最大的数据发送到服务器 */
+					rv = socket_client_send(&sock, packdata);
+					if(rv < 0)
 					{
-						log_warn("database has no data delete\n");
+						log_error("database send data failure\n");
+						socket_close(&sock);
 					}
-				}
-				/* 把数据库里面的id数最大的数据发送到服务器 */
-				rv = socket_client_send(&sock, packdata);
-				if(rv < 0)
-				{
-					log_error("send data failure: %s\n",strerror(errno));
-					socket_close(&sock);
-				}
-				else
-				{
-					log_info("database data send successfully\n");
+					else
+					{
+						/* 把数据库里面最大id数的数据删除 */
+						if(sqlite_delete_data() < 0)
+						{
+							log_warn("database delete data failure or no data\n");
+						}
+					}
 				}
 			}
 			else
@@ -224,7 +223,7 @@ int get_serial(char *serial_buf)
 {
 	int   n = 1;
 	memset(serial_buf, 0, sizeof(serial_buf));
-	sprintf(serial_buf, "hby%03d",n);
+	sprintf(serial_buf, "hby%03d", n);
 	return 0;
 }
 
