@@ -14,7 +14,7 @@
 #define  MY_SQLITE3_H
 #include "packdata.h"
 
-int get_sqlite_create_db(void);
+int sqlite_create_db(void);
 
 int sqlite_insert_data(packdata_t *packdata);
 
