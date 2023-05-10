@@ -3,6 +3,8 @@ PORT     = 9987
 HOSTNAME = 192.168.68.129
 INTERVAL = 3
 APPNAME  = temp_cli
+DATABASE = test.db
+LIBNAME  = lib
 LIBPATH1 = `pwd`/include/
 LIBPATH2 = `pwd`/lib/
 LIBPATH3 = logger
@@ -30,6 +32,8 @@ all:
 
 clean:
 	rm -f ${APPNAME}
+	rm -f ${DATABASE}
+	rm -rf ${LIBNAME}
 
 run:
 	export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:LIBPATH
