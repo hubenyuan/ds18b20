@@ -11,6 +11,7 @@
 lib*
 *.so
 *.a
+*.log
 
 # Bin
 a.out
