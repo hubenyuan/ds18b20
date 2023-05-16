@@ -2,14 +2,15 @@
  *      Copyright:  (C) 2023 Hu Ben Yuan<2017603273@qq.com>
  *                  All rights reserved.
  *
- *       Filename:  o.c
+ *       Filename:  select.c
  *    Description:  This file 
  *                 
- *        Version:  1.0.0(04/29/2023)
+ *        Version:  1.0.0(05/16/2023)
  *         Author:  Hu Ben Yuan <2017603273@qq.com>
- *      ChangeLog:  1, Release initial version on "04/29/2023 12:20:46 PM"
+ *      ChangeLog:  1, Release initial version on "05/16/2023 07:05:38 PM"
  *                 
  ********************************************************************************/
+
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -38,7 +39,6 @@ int main(int argc, char **argv)
 	int                       listenfd, connfd;
 	int                       serv_port;
 	int                       daemon_run = 0;
-	char                     *progname = NULL;
 	int                       opt;
 	int                       rv;
 	int                       i, j;
@@ -47,6 +47,7 @@ int main(int argc, char **argv)
 	char                      buf[512];
 	int                       fds_array[1024];
 	fd_set                    rdset;
+	char                     *progname = NULL;
 
 	struct option         long_options[]=
 	{
