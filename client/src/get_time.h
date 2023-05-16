@@ -12,7 +12,8 @@
  ********************************************************************************/
 #ifndef   GET_TIME_H_
 #define   GET_TIME_H_
+#include "packdata.h"
 
-int get_time(char *time_buf);
+int get_time(packdata_t *packdata);
 
 #endif

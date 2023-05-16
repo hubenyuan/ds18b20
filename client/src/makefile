@@ -4,9 +4,10 @@ PREFIX = `pwd`/../
 
 
 LIBNAME1 = my_sqlite3
-LIBNAME2 = time
+LIBNAME2 = get_time
 LIBNAME3 = temp
 LIBNAME4 = logger
+LIBNAME5 = client
 
 all: static_lib
 
@@ -16,9 +17,10 @@ static_lib:
 	ar -rcs lib${LIBNAME2}.a *.o
 	ar -rcs lib${LIBNAME3}.a *.o
 	ar -rcs lib${LIBNAME4}.a *.o
+	ar -rcs lib${LIBNAME5}.a *.o
 
 clean:
-	rm -f *.o
+	rm -f *.a
 	rm -f *.o
 
 distclean:clean
@@ -31,7 +33,4 @@ install:
 	cp *.h ${PREFIX}/include
 
 uninstall:
-	rm -f ${PREFIX}/lib/lib${LIBNAME1}.*
-	rm -f ${PREFIX}/lib/lib${LIBNAME2}.*
-	rm -f ${PREFIX}/lib/lib${LIBNAME3}.*
-	rm -f ${PREFIX}/lib/lib${LIBNAME4}.*
+	rm -f ${PREFIX}/lib/lib*

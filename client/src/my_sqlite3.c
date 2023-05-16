@@ -83,7 +83,7 @@ int sqlite_insert_data(packdata_t *packdata)
     
 
     memset(insert_buf, 0, sizeof(insert_buf));
-    sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%s' );", list_name,packdata->data_time, packdata->data_serial, packdata->data_temp);
+    sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%f' );", list_name,packdata->time, packdata->devsn, packdata->temperature);
 
     rv = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
 
@@ -100,6 +100,7 @@ int sqlite_insert_data(packdata_t *packdata)
 }
 
 /*获取数据库数据最大ID并且判断数据库里面存不存在数据*/
+/*
 int sqlite_maxid(int *maxid)
 {
     int       rownum;
@@ -130,9 +131,9 @@ int sqlite_maxid(int *maxid)
     *maxid = atoi(result[1*colnum]);
     return 0;
 }
+*/
 
-
-/* 获取数据库id数最大的数据 */ 
+/* 获取数据库表里面第一条数据 */ 
 int sqlite_select_data(packdata_t *packdata)
 {
     char            select_buf[128];
@@ -144,27 +145,30 @@ int sqlite_select_data(packdata_t *packdata)
     char          **result;
 
     memset(select_buf,0,sizeof(select_buf));
-
-    sprintf(select_buf,"SELECT * FROM %s ORDER BY id DESC;",list_name);
-
+    sprintf(select_buf,"SELECT * FROM %s LIMIT 1;",list_name);
     rv = sqlite3_get_table(db, select_buf, &result, &rownum, &colnum, &zErrMsg);
-    if(rv != SQLITE_OK)
-    {
-        log_warn("Obtaining data failure: %s\n",zErrMsg);
-        sqlite3_free(zErrMsg);
-        return -1;
-    }
-
-	memset(packdata, 0, sizeof(packdata));
-
-	strcpy(packdata->data_time, result[1*colnum+1]);
-	strcpy(packdata->data_serial, result[1*colnum+2]);
-	strcpy(packdata->data_temp, result[1*colnum+3]);
-
-    return 0;
+    if( rownum <=0 )
+	{
+		log_warn("database has no data: %s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+		return -2;
+	}
+	else
+	{
+		if(rv != SQLITE_OK)
+		{
+			log_warn("Obtaining data failure: %s\n",zErrMsg);
+			sqlite3_free(zErrMsg);
+		}
+		memset(packdata, 0, sizeof(packdata_t));
+		strcpy(packdata->time, result[1*colnum+1]);
+		strcpy(packdata->devsn, result[1*colnum+2]);
+		packdata->temperature = atof(result[1*colnum+3]);
+	}
+    return rownum;
 }
 
-/* 删除数据库表里面ID最大的数据 */
+/* 删除数据库表里面第一条数据 */
 int sqlite_delete_data(void)
 {
     int           rv;
@@ -172,7 +176,7 @@ int sqlite_delete_data(void)
     char         *zErrMsg;
     
     memset(delete_buf,0,sizeof(delete_buf));
-    sprintf(delete_buf,"DELETE FROM %s WHERE ID=(SELECT MAX(ID) FROM %s);",list_name,list_name);
+    sprintf(delete_buf,"DELETE FROM %s WHERE ID=(SELECT ID FROM %s LIMIT 1);",list_name,list_name);
 
     rv = sqlite3_exec(db, delete_buf, callback, 0, &zErrMsg);
 
@@ -180,7 +184,6 @@ int sqlite_delete_data(void)
     {
         log_warn("delete packaged_data failure: %s\n",zErrMsg);
         sqlite3_free(zErrMsg);
-        return -1;
     }
     log_info("delete packaged_data successfully\n");
     return 0;

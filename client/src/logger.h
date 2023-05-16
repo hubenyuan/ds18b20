@@ -28,6 +28,7 @@ enum
 #define LOG_STRING_INFO    "INFO"
 #define LOG_STRING_DEBUG   "DEBUG"
 
+
 int logger_init(char *filename, int loglevel);
 void logger_term(void);
 

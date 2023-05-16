@@ -14,6 +14,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #include "logger.h"
@@ -23,9 +26,9 @@ extern const char* __progname;
 
 typedef struct logger_s
 {
-	FILE    *fp;
 	int      loglevel;
 	int      use_stdout;
+	FILE    *fp;
 } logger_t;
 
 static struct logger_s g_logger;
@@ -51,13 +54,18 @@ int logger_init(char *filename,int loglevel)
 	else
 	{
 		g_logger.use_stdout = 0;
-		g_logger.fp = fopen(filename, "a");
+		g_logger.fp = fopen(filename, "a+");
 		if( !g_logger.fp )
 		{
-			fprintf(stderr, "Failure to open file '%s' : %s",filename, strerror(errno));
-			return -1;
+			g_logger.fp = fopen(filename, "w+");
+			if( !g_logger.fp)
+			{
+				fprintf(stderr, "Failure to open file '%s' : %s",filename, strerror(errno));
+				return -1;
+			}
 		}
 	}
+
 
 	return 0;
 }
@@ -79,6 +87,7 @@ void logger_term(void)
 
 	return ;
 }
+
 
 void log_generic(const int level, const char *format, va_list args)
 {

@@ -31,11 +31,11 @@
 
 
 /* 初始化socket客户端 */
-int socket_client_init(socket_t *sock, char *hostname, int port)
+int socket_client_init(socket_t *sock, char *Hostname, int port)
 {
 	sock->fd = -1;
 
-	strcpy(sock->hostip, hostname);
+	strcpy(sock->hostip, Hostname);
 
 	sock->port = port; 
 
@@ -82,11 +82,38 @@ int socket_client_connect(socket_t *sock)
 
 	for(read = res; read != NULL; read = read->ai_next)  //遍历链表每一个节点，查询关于存储返回的IP的信息
 	{
-		addr = (struct sockaddr_in *)read->ai_addr;    //将返回的IP信息存储在addr指向的结构体中
+		addr = (struct sockaddr_in *)read->ai_addr;//将返回的IP信息存储在addr指向的结构体中
 		log_info("IP address: %s\n", inet_ntoa(addr->sin_addr));   //inet_ntoa函数将字符串类型IP地址转化为点分十进制
+
+		sock->fd = socket(AF_INET, SOCK_STREAM, 0);
+		if(sock->fd < 0)
+		{
+			log_error("Create socket failur: %s\n", strerror(errno));
+			return -1;
+		}
+		log_info("Create socket[%d] successfully!\n", (sock->fd));
+
+		memset(&servaddr, 0, sizeof(servaddr));
+		servaddr.sin_port=htons(sock->port);
+		servaddr.sin_family=AF_INET;
+		inet_aton(sock->hostip, &servaddr.sin_addr);
+
+		rv=connect(sock->fd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+		if(rv < 0)
+		{
+			log_warn("Connect to server failure: %s\n",strerror(errno));
+			socket_close(sock);
+		}
+		else
+		{
+			log_info("Connect to server [%s:%d] successfully!\n", sock->hostip, sock->port);
+			sock->connected = 1;
+			break;
+		}
 	}
 
 	/* 开始连接服务器 */
+/*
 	(sock->fd) = socket(AF_INET, SOCK_STREAM, 0);
 	if( (sock->fd) < 0 )
 	{
@@ -110,8 +137,9 @@ int socket_client_connect(socket_t *sock)
 	else
 	{
 		log_info("Connect to server [%s:%d] successfully!\n", sock->hostip, sock->port);
+		sock->connected = 1;
 	}
-
+*/
 	freeaddrinfo(res);    //释放getaddrinfo函数调用动态获取的空间
 	return rv;
 }
@@ -132,7 +160,7 @@ int socket_client_judge(socket_t *sock)
 	rv=getsockopt(sock->fd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *) &len);
 	if(rv < 0)
 	{
-		log_info("socket connected\n");
+		log_info("socket disconnected\n");
 		return -2;
 	}
 
@@ -158,7 +186,7 @@ int socket_client_send(socket_t *sock, packdata_t packdata)
 	char         data_buf[256];
 
 	memset(data_buf, 0, sizeof(data_buf));
-	sprintf(data_buf, "%s/%s/%s",packdata.data_time, packdata.data_serial, packdata.data_temp);
+	sprintf(data_buf, "%s/%s/%f",packdata.time, packdata.devsn, packdata.temperature);
 
 	log_debug("data_buf= %s\n", data_buf);
 	rv = write(sock->fd,data_buf,strlen(data_buf));

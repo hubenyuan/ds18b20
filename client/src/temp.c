@@ -22,6 +22,7 @@
 #include <stdlib.h>
 
 #include "logger.h"
+#include "packdata.h"
 
 int get_temperature(float *temp)
 {
@@ -31,8 +32,8 @@ int get_temperature(float *temp)
     char             chip_sn[32];
     int              found = 0;
     char             ds18b20_path[64];
-    char            *ptr     = NULL;
-    DIR             *dirp    = NULL;
+    char            *ptr = NULL;
+    DIR             *dirp = NULL;
     struct dirent   *direntp = NULL;
     dirp=opendir(w1_path);
 
@@ -64,7 +65,6 @@ int get_temperature(float *temp)
 
     if(fd<0)
     {
-        log_warn("open file failure:%s\n",strerror(errno));
         perror("open file failure\n");
         return -3;
     }
@@ -91,18 +91,18 @@ int get_temperature(float *temp)
 }
 
 /* 获取温度 */
-int get_temporary(char *temp_buf)
+int get_temp(packdata_t *packdata)
 {
     float   temp;
-    int     rs = -1;
-    rs=get_temperature(&temp);
-    memset(temp_buf, 0, sizeof(temp_buf));
-    if(rs<0)
+    int     rv = -1;
+
+    rv=get_temperature(&temp);
+    if(rv<0)
     {
-        log_warn("get temperature failure,return value:%d",rs);
+        log_warn("get temperature failure,return value:%d",rv);
         return -1;
     }
-    sprintf(temp_buf,"%f",temp);
+	packdata->temperature = temp;
     return 0;
 
 }

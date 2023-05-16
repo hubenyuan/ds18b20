@@ -17,22 +17,24 @@
 #include <errno.h>
 
 #include "logger.h"
+#include "packdata.h"
 
 /*获取采样的时间*/
-int get_time(char *time_buf)
+int get_time(packdata_t *packdata)
 {
     time_t       now;
     struct tm   *t; 
     time(&now);
     t = localtime(&now);
+
     if(!t)
     {   
         log_warn("obtain time failure: %s\n",strerror(errno));
         return -1; 
     }   
 
-    memset(time_buf, 0, sizeof(time_buf));
-    sprintf(time_buf, "%04d-%02d-%02d %02d:%02d:%02d",
+    memset(packdata->time, 0, sizeof(packdata->time));
+    sprintf(packdata->time, "%04d-%02d-%02d %02d:%02d:%02d",
             t->tm_year+1900,t->tm_mon+1,t->tm_mday,
             t->tm_hour,t->tm_min,t->tm_sec);
     return 0;
