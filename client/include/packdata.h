@@ -14,11 +14,11 @@
 #ifndef PACKDATA_H_
 #define PACKDATA_H_
 
-typedef struct packdata_st
+typedef struct packdata_s
 {
-	char    data_time[64];
-	char    data_serial[64];
-	char    data_temp[64];
+	char    time[32];
+	char    devsn[8];
+	float   temperature;
 } packdata_t;
 
 #endif

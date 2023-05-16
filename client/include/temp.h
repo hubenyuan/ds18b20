@@ -13,7 +13,8 @@
 
 #ifndef  TEMP_H
 #define  TEMP_H
+#include "packdata.h"
 
-int get_temp(char *temp_buf);
+int get_temp(packdata_t *packdata);
 
 #endif
