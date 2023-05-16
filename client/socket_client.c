@@ -29,43 +29,42 @@
 #include "client.h"
 #include "packdata.h"
 
-int get_serial(char *serial_buf);
+int get_devsn(packdata_t *packdata);
 static inline void print_usage(char *progname);
 
 
 int main(int argc, char **argv)
 {
-	int                   sockfd = -1;
 	int                   rv = -1;
 	int                   port = 8888;    //默认端口
 	int                   itval = 6;     //设置上报时间，默认6秒
 	int                   sample = 0;     //采样标志符，为0没采样，为1采了样
 	int                   ch;
-	int                   maxid;
 	int                   idx;
-	time_t                collet_time = 0;     //上次采样时间戳
+	int                   loglevel = LOG_LEVEL_INFO;
+	int                   debug = 0;
+	time_t                last_time = 0;     //上次采样时间戳
 	time_t                current_time = 0;    //当前时间戳           
-	char                  hostname[64] = "192.168.68.129";   //默认IP
-	char                  serial_buf[16];
-	char                  time_buf[64];
-	char                  temp_buf[64];
+	char                  Hostname[64] = "192.168.68.129";   //默认IP
 	socket_t              sock;
 	packdata_t            packdata;
+//	char                  *logfile = "client.log";    //定义一个client.log的文件用来后台输出
 
 	struct option       opts[] = {
-		{"hostname", required_argument, NULL, 'h'},
+		{"Hostname", required_argument, NULL, 'h'},
 		{"port", required_argument, NULL, 'p'},
 		{"interval", required_argument, NULL, 't'},
-		{"Help", no_argument, NULL, 'H'},
+	//	{"debug", no_argument, NULL, 'd'},
+		{"help", no_argument, NULL, 'H'},
 		{NULL, 0, NULL, 0}
 	};
 
-	while((ch=getopt_long(argc, argv, "h:p:t:H", opts, &idx)) != -1)
+	while((ch=getopt_long(argc, argv, "H:p:t:dh", opts, &idx)) != -1)
 	{
 		switch(ch)
 		{
-			case 'h':
-				strcpy(hostname,optarg);
+			case 'H':
+				strcpy(Hostname,optarg);
 				break;
 			case 'p':
 				port=atoi(optarg);
@@ -73,25 +72,36 @@ int main(int argc, char **argv)
 			case 't':
 				itval=atoi(optarg);
 				break;
-			case 'H':
+/*          case 'd':
+				debug=1;
+				logfile="stdout";
+				loglevel=LOG_LEVEL_DEBUG;
+*/			
+			case 'h':
 				print_usage(argv[0]);
 				return 0;
 		}
 	}
 
-	if( argc < 3)
-	{
-		log_error("Program usage: %s [ServerIP] [Port] [Time]\n",argv[0]);
-		return 0;
-	}
-
-	if( logger_init("stdout", LOG_LEVEL_DEBUG) < 0)
+/* 把输出放到client.log里面打印 */
+/* 	if( logger_init(logfile, loglevel) < 0)
 	{
 		fprintf(stderr, "initial logger system failure\n");
-		return 1;
+		return -1;
 	}
+	if(!debug)
+	{
+		fprintf(stderr, "Initial logger file '%s' failure: %s\n", logfile, strerror(errno));
+		daemon(1,1);
+	}
+*/
 
-	rv = socket_client_init(&sock, hostname, port);
+	if(logger_init("stdout", LOG_LEVEL_DEBUG) < 0)
+	{
+		fprintf(stderr, "initial logger system failure\n");
+		return -1;
+	}
+	rv = socket_client_init(&sock, Hostname, port);
 	if(rv < 0)
 	{
 		log_warn("socket initialization failure\n");
@@ -108,25 +118,19 @@ int main(int argc, char **argv)
 	{
 		/* 判断到没到采样时间，时间到了就开始采样 */
 		current_time = time(NULL);
-		if( (current_time-collet_time) >= itval )
+		if( (current_time-last_time) >= itval )
 		{
 			sample = 1;
 
 			/* 获取当前的时间 */
-			get_time(time_buf);
+			get_time(&packdata);
 			/* 获取当前的温度 */
-			get_temp(temp_buf);
+			get_temp(&packdata);
 			/* 获取产品序列号 */
-			get_serial(serial_buf);
+			get_devsn(&packdata);
+			log_debug("time= %s,devsn= %s,temperature= %f\n",packdata.time, packdata.devsn,packdata.temperature);
 
-			/* 将采集的数据都放到packdata结构体里面 */
-			memset(&packdata, 0, sizeof(packdata));
-			strcpy(packdata.data_time, time_buf);
-			strcpy(packdata.data_serial, serial_buf);
-			strcpy(packdata.data_temp, temp_buf);
-			log_debug("data_time= %s,data_serial= %s,data_temp= %s\n",packdata.data_time,packdata.data_serial,packdata.data_temp);
-
-			collet_time = current_time;
+			last_time = current_time;
 		}
 
 		else
@@ -178,38 +182,28 @@ int main(int argc, char **argv)
 		/* 如果没有采样的数据但是socket已经连接，将数据库里面的数据发送到服务器 */
 		else
 		{
-			/* 判断数据库里面有没有数据，maxid大于0就是有数据 */
-			sqlite_maxid(&maxid);
-			if( maxid > 0)
+			/* 把数据库里面第一条数据提取出来 */
+			if(sqlite_select_data(&packdata) < 0)
 			{
-				/* 把数据库里面最大id数的数据提取出来 */
-				if(sqlite_select_data(&packdata) < 0)
-				{
-					log_warn("database get data failure\n");
-					log_debug("maxid= %d\n", maxid);
-				}
-				else
-				{
-					/* 把数据库里面的id数最大的数据发送到服务器 */
-					rv = socket_client_send(&sock, packdata);
-					if(rv < 0)
-					{
-						log_error("database send data failure\n");
-						socket_close(&sock);
-					}
-					else
-					{
-						/* 把数据库里面最大id数的数据删除 */
-						if(sqlite_delete_data() < 0)
-						{
-							log_warn("database delete data failure or no data\n");
-						}
-					}
-				}
+				log_warn("database get data failure or has no data\n");
 			}
 			else
 			{
-				log_info("database has no data\n");
+				/* 把数据库里面第一条数据发送到服务器 */
+				rv = socket_client_send(&sock, packdata);
+				if(rv < 0)
+				{
+					log_error("database send data failure\n");
+					socket_close(&sock);
+				}
+				else
+				{
+					/* 把数据库里面第一条数据删除 */
+					if(sqlite_delete_data() < 0)
+					{
+						log_warn("database delete data failure or no data\n");
+					}
+				}
 			}
 		}
 	}
@@ -219,21 +213,22 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-int get_serial(char *serial_buf)
+int get_devsn(packdata_t *packdata)
 {
 	int   n = 1;
-	memset(serial_buf, 0, sizeof(serial_buf));
-	sprintf(serial_buf, "hby%03d", n);
+	memset(packdata->devsn, 0, sizeof(packdata->devsn));
+	sprintf(packdata->devsn, "hby%03d", n);
 	return 0;
 }
 
 static inline void print_usage(char *progname)
 {
     log_error("%s usage: \n", progname);
-    log_error("-h[hostname ]: sepcify server IP address\n");
+    log_error("-H[Hostname ]: sepcify server IP address\n");
     log_error("-p[port     ]: sepcify server port.\n");
     log_error("-t[interval ]: sepcify the time to send.\n");
-    log_error("-H[Help     ]: print this help informstion.\n");
+    log_error("-d[debug    ]: run as debug mode.\n");
+    log_error("-h[help     ]: print this help informstion.\n");
     return ;
 }
 
