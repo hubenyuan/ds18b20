@@ -18,8 +18,6 @@
 
 #include "logger.h"
 
-#define  list_name "serv_db"
-
 static sqlite3  *db;
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName)
@@ -60,33 +58,35 @@ int sqlite_insert_data(char *buf)
 {
     char       create_buf[128];
 	int        rv;
-	int        rd;
 	char       insert_buf[512];
+	float      temp;
 	char      *zErrMsg;
-	char      *str1,*str2,*str3;
-	str1 = strtok(buf,"/");
-	str2 = strtok(NULL,"/");
-	str3 = strtok(NULL,"/");
+	char      *time;
+	char      *sn;
+
+	time = strtok(buf,"/");
+	sn   = strtok(NULL,"/");
+	temp = atof(strtok(NULL,"/"));
 
 	memset(create_buf,0,sizeof(create_buf));
-	sprintf(create_buf,"CREATE TABLE %s(ID INTEGER PRIMARY KEY, time CHAR(80),serial CHAR(30),temperature CHAR(50));",str2);
+	sprintf(create_buf,"CREATE TABLE %s(ID INTEGER PRIMARY KEY, time CHAR(80),serial CHAR(30),temperature CHAR(50));",sn);
 	rv = sqlite3_exec(db,create_buf,callback,0,&zErrMsg);
 	if( rv != SQLITE_OK )
     {   
-        log_warn("failure to create %s: %s\n",str2, zErrMsg);
+        log_warn("failure to create %s: %s\n",sn, zErrMsg);
         sqlite3_free(zErrMsg);
     }   
 	else
 	{
-		log_info("create list %s successfully\n", str2);
+		log_info("create list %s successfully\n", sn);
 	}
 
 	memset(insert_buf, 0, sizeof(insert_buf));
-	sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%s' );", str2, str1, str2, str3);
+	sprintf(insert_buf,"INSERT INTO %s VALUES( NULL, '%s', '%s', '%f' );", sn, time, sn, temp);
 
-	rd = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
+	rv = sqlite3_exec(db, insert_buf, callback, 0, &zErrMsg);
 
-	if(rd != SQLITE_OK)
+	if(rv != SQLITE_OK)
 	{
 		
 		log_warn("insert data failure: %s\n",zErrMsg);
